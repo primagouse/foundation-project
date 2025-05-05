@@ -6,8 +6,6 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
-# Set device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Hyperparameters
 input_channels = 1
@@ -16,24 +14,6 @@ learning_rate = 0.001
 batch_size = 64
 num_epochs = 5
 
-# Load MNIST dataset
-train_dataset = torchvision.datasets.MNIST(
-    root='./data', 
-    train=True, 
-    transform=transforms.ToTensor(),
-    download=True
-)
-
-test_dataset = torchvision.datasets.MNIST(
-    root='./data', 
-    train=False, 
-    transform=transforms.ToTensor(),
-    download=True
-)
-
-#dataloader function! iterable
-train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
 # CNN Model
 #what is a cnn? why use a cnn and feed the hidden states through
@@ -68,53 +48,43 @@ class CNN(nn.Module):
         x = self.fc1(x)
         return x
 
-# Initialize network
-model = CNN().to(device)
 
-# Loss and optimizer
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-# Train network
-for epoch in range(num_epochs):
-    for batch_idx, (data, targets) in enumerate(train_loader):
-        data = data.to(device)
-        targets = targets.to(device)
-        
-        # Forward pass
-        scores = model(data)
-        loss = criterion(scores, targets)
-        
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        
-        # Gradient descent
-        optimizer.step()
-        
-    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {loss.item():.4f}')
-
-# Check accuracy
-def check_accuracy(loader, model):
-    num_correct = 0
-    num_samples = 0
-    model.eval()
+def train_and_save_model():
+    # Training setup
+    transform = transforms.ToTensor()
+    train_dataset = torchvision.datasets.MNIST(
+        root='./data', 
+        train=True, 
+        transform=transform,
+        download=True
+    )
+    train_loader = torch.utils.data.DataLoader(
+        dataset=train_dataset, 
+        batch_size=64, 
+        shuffle=True
+    )
     
-    with torch.no_grad():
-        for x, y in loader:
-            x = x.to(device)
-            y = y.to(device)
-            
-            scores = model(x)
-            _, predictions = scores.max(1)
-            num_correct += (predictions == y).sum()
-            num_samples += predictions.size(0)
-            
-    model.train()
-    return num_correct / num_samples
+    # Model initialization
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = CNN().to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    # Training loop
+    for epoch in range(5):
+        for batch_idx, (data, targets) in enumerate(train_loader):
+            data, targets = data.to(device), targets.to(device)
+            optimizer.zero_grad()
+            outputs = model(data)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+        
+        print(f'Epoch {epoch+1}, Loss: {loss.item():.4f}')
+    
+    # Save model only (no testing)
+    torch.save(model.state_dict(), 'mnist_cnn.pth')
+    print("Model saved to mnist_cnn.pth")
 
-print(f"Accuracy on training set: {check_accuracy(train_loader, model)*100:.2f}%")
-print(f"Accuracy on test set: {check_accuracy(test_loader, model)*100:.2f}%")
-
-# Save model
-torch.save(model.state_dict(), 'mnist_cnn.pth')
+if __name__ == '__main__':
+    train_and_save_model()
